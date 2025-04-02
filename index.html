@@ -492,15 +492,7 @@
                 </h2>
                 <button id="closeModal" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
             </div>
-            
-            <div class="mb-6">
-                <div class="relative">
-                    <input type="text" id="locationInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Enter city or address">
-                    <button id="searchLocation" class="absolute right-3 top-3 text-indigo-600 hover:text-indigo-800">
-                        <i class="fas fa-search"></i>
-                    </button>
-                </div>
-            </div>
+
             
             <div class="mb-6">
                 <button id="useCurrentLocation" class="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center">
@@ -508,30 +500,7 @@
                 </button>
             </div>
             
-            <div class="flex items-center justify-center mb-4">
-                <div class="border-t border-gray-300 flex-grow"></div>
-                <span class="px-4 text-gray-500">or</span>
-                <div class="border-t border-gray-300 flex-grow"></div>
-            </div>
             
-            <div class="grid grid-cols-2 gap-4">
-                <button data-specialty="emergency" class="hospital-type-btn bg-red-50 text-red-600 py-3 rounded-lg hover:bg-red-100 transition flex flex-col items-center justify-center">
-                    <i class="fas fa-ambulance text-2xl mb-2"></i>
-                    <span>Emergency</span>
-                </button>
-                <button data-specialty="trauma" class="hospital-type-btn bg-blue-50 text-blue-600 py-3 rounded-lg hover:bg-blue-100 transition flex flex-col items-center justify-center">
-                    <i class="fas fa-user-md text-2xl mb-2"></i>
-                    <span>Trauma</span>
-                </button>
-                <button data-specialty="pediatrics" class="hospital-type-btn bg-green-50 text-green-600 py-3 rounded-lg hover:bg-green-100 transition flex flex-col items-center justify-center">
-                    <i class="fas fa-baby text-2xl mb-2"></i>
-                    <span>Pediatrics</span>
-                </button>
-                <button data-specialty="cardiology" class="hospital-type-btn bg-purple-50 text-purple-600 py-3 rounded-lg hover:bg-purple-100 transition flex flex-col items-center justify-center">
-                    <i class="fas fa-heart text-2xl mb-2"></i>
-                    <span>Cardiology</span>
-                </button>
-            </div>
             
             <div id="errorMessage" class="text-red-500 text-center mt-4 hidden"></div>
             
@@ -1023,6 +992,7 @@ useCurrentLocation.addEventListener('click', () => {
                 ]
             });
         }
+        window.location.href = `hospitals.html?lat=${latitude}&lon=${longitude}`;
     </script>
 </body>
 </html>
