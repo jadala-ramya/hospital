@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Nearby Hospitals - MediRapid</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBMdaXL9Uer8_1pJpaZF18fnjYRBqig8qg&libraries=places"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 8px;
+        }
+        .location-btn {
+            transition: all 0.3s ease;
+        }
+        .location-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-12">
+        <div class="bg-white shadow-lg rounded-lg p-8">
+            <h1 class="text-3xl font-bold mb-6 text-blue-600">
+                <i class="fas fa-hospital mr-3"></i>Nearby Hospitals
+            </h1>
+
+            <div id="loadingIndicator" class="text-center py-8">
+                <i class="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
+                <p class="mt-4 text-gray-600">Detecting your location...</p>
+            </div>
+
+            <div id="mapContainer" class="hidden">
+                <div id="map"></div>
+                <div class="mt-4 text-center">
+                    <button id="findHospitalsBtn" class="location-btn bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg">
+                        <i class="fas fa-map-marker-alt mr-2"></i>Find Nearby Hospitals on Google Maps
+                    </button>
+                </div>
+            </div>
+
+            <div id="errorMessage" class="hidden text-center text-red-500 py-8">
+                <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                <p id="errorText">Unable to detect your location</p>
+                <button id="manualLocationBtn" class="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                    Try Manual Location
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-6 text-center">
+            <a href="index.html" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                <i class="fas fa-arrow-left mr-2"></i>Back to Search
+            </a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const mapContainer = document.getElementById('mapContainer');
+            const errorMessage = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            const findHospitalsBtn = document.getElementById('findHospitalsBtn');
+            const manualLocationBtn = document.getElementById('manualLocationBtn');
+            
+            let userLatitude = null;
+            let userLongitude = null;
+            let map = null;
+            let marker = null;
+
+            // Try to get user's current location
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        // Successfully got location
+                        userLatitude = position.coords.latitude;
+                        userLongitude = position.coords.longitude;
+                        initMap(userLatitude, userLongitude);
+                    },
+                    (error) => {
+                        // Failed to get location
+                        handleLocationError(error);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                // Geolocation not supported
+                errorText.textContent = "Geolocation is not supported by your browser";
+                errorMessage.classList.remove('hidden');
+                loadingIndicator.classList.add('hidden');
+            }
+
+            function initMap(lat, lng) {
+                loadingIndicator.classList.add('hidden');
+                mapContainer.classList.remove('hidden');
+                
+                // Create Google Map centered at user's location
+                map = new google.maps.Map(document.getElementById('map'), {
+                    center: { lat: lat, lng: lng },
+                    zoom: 15
+                });
+                
+                // Add marker for user's location
+                marker = new google.maps.Marker({
+                    position: { lat: lat, lng: lng },
+                    map: map,
+                    title: 'Your Location',
+                    icon: {
+                        url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                    }
+                });
+                
+                // Add circle to show accuracy
+                new google.maps.Circle({
+                    strokeColor: '#4285F4',
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                    fillColor: '#4285F4',
+                    fillOpacity: 0.2,
+                    map: map,
+                    center: { lat: lat, lng: lng },
+                    radius: 100 // meters
+                });
+            }
+
+            function handleLocationError(error) {
+                loadingIndicator.classList.add('hidden');
+                errorMessage.classList.remove('hidden');
+                
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorText.textContent = "You denied the request for geolocation.";
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorText.textContent = "Location information is unavailable.";
+                        break;
+                    case error.TIMEOUT:
+                        errorText.textContent = "The request to get location timed out.";
+                        break;
+                    case error.UNKNOWN_ERROR:
+                        errorText.textContent = "An unknown error occurred.";
+                        break;
+                }
+            }
+
+            // Button to find nearby hospitals on Google Maps
+            findHospitalsBtn.addEventListener('click', () => {
+                if (userLatitude && userLongitude) {
+                    window.open(
+                        `https://www.google.com/maps/search/hospitals/@${userLatitude},${userLongitude},15z/data=!4m8!2m7!3m6!1shospitals!2s${userLatitude},${userLongitude}!3s0x0:0x0!4m2!1d${userLongitude}!2d${userLatitude}`,
+                        '_blank'
+                    );
+                } else {
+                    // Fallback to New York if no location available
+                    window.open(
+                        'https://www.google.com/maps/search/hospitals/@40.7128,-74.0060,15z',
+                        '_blank'
+                    );
+                }
+            });
+
+            // Button for manual location fallback
+            manualLocationBtn.addEventListener('click', () => {
+                const manualLocation = prompt("Please enter your location (city or address):");
+                if (manualLocation) {
+                    const geocoder = new google.maps.Geocoder();
+                    geocoder.geocode({ address: manualLocation }, (results, status) => {
+                        if (status === 'OK') {
+                            userLatitude = results[0].geometry.location.lat();
+                            userLongitude = results[0].geometry.location.lng();
+                            initMap(userLatitude, userLongitude);
+                            errorMessage.classList.add('hidden');
+                        } else {
+                            alert("Could not find that location. Please try again.");
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
