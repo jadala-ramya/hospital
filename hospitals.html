@@ -3,22 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Find Nearby Hospitals - MediRapid</title>
+    <title>Nearby Hospitals - MediRapid</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBMdaXL9Uer8_1pJpaZF18fnjYRBqig8qg&libraries=places"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <style>
-        #map {
-            height: 400px;
-            width: 100%;
-            border-radius: 8px;
-        }
-        .location-btn {
-            transition: all 0.3s ease;
-        }
-        .location-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        .hospital-row:hover {
+            background-color: #f4f4f4;
+            transition: background-color 0.3s ease;
         }
     </style>
 </head>
@@ -28,26 +19,35 @@
             <h1 class="text-3xl font-bold mb-6 text-blue-600">
                 <i class="fas fa-hospital mr-3"></i>Nearby Hospitals
             </h1>
-
+            
             <div id="loadingIndicator" class="text-center py-8">
                 <i class="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
-                <p class="mt-4 text-gray-600">Detecting your location...</p>
+                <p class="mt-4 text-gray-600">Searching for nearby hospitals...</p>
             </div>
 
-            <div id="mapContainer" class="hidden">
-                <div id="map"></div>
-                <div class="mt-4 text-center">
-                    <button id="findHospitalsBtn" class="location-btn bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg">
-                        <i class="fas fa-map-marker-alt mr-2"></i>Find Nearby Hospitals on Google Maps
-                    </button>
+            <div id="hospitalsContainer" class="hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full bg-white shadow-md rounded-lg overflow-hidden">
+                        <thead class="bg-blue-500 text-white">
+                            <tr>
+                                <th class="py-3 px-4 text-left">Hospital Name</th>
+                                <th class="py-3 px-4 text-left">Address</th>
+                                <th class="py-3 px-4 text-left">Distance</th>
+                                <th class="py-3 px-4 text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hospitalsTableBody">
+                            <!-- Hospitals will be dynamically added here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
             <div id="errorMessage" class="hidden text-center text-red-500 py-8">
                 <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
-                <p id="errorText">Unable to detect your location</p>
+                <p id="errorText">Unable to find nearby hospitals</p>
                 <button id="manualLocationBtn" class="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                    Try Manual Location
+                    Enter Location Manually
                 </button>
             </div>
         </div>
@@ -60,129 +60,164 @@
     </div>
 
     <script>
+        // Basic API Endpoint
+        const NOMINATIM_API = 'https://nominatim.openstreetmap.org/search';
+
         document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
             const loadingIndicator = document.getElementById('loadingIndicator');
-            const mapContainer = document.getElementById('mapContainer');
+            const hospitalsContainer = document.getElementById('hospitalsContainer');
+            const hospitalsTableBody = document.getElementById('hospitalsTableBody');
             const errorMessage = document.getElementById('errorMessage');
             const errorText = document.getElementById('errorText');
-            const findHospitalsBtn = document.getElementById('findHospitalsBtn');
             const manualLocationBtn = document.getElementById('manualLocationBtn');
-            
-            let userLatitude = null;
-            let userLongitude = null;
-            let map = null;
-            let marker = null;
+
+            // Hospital Finder Class
+            class HospitalFinder {
+                // Calculate Distance Between Coordinates
+                calculateDistance(lat1, lon1, lat2, lon2) {
+                    const R = 6371; // Radius of the earth in kilometers
+                    const dLat = this.deg2rad(lat2 - lat1);
+                    const dLon = this.deg2rad(lon2 - lon1);
+                    const a = 
+                        Math.sin(dLat/2) * Math.sin(dLat/2) +
+                        Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) * 
+                        Math.sin(dLon/2) * Math.sin(dLon/2)
+                    ; 
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+                    const distance = R * c; // Distance in kilometers
+                    return distance.toFixed(2);
+                }
+
+                // Convert Degrees to Radians
+                deg2rad(deg) {
+                    return deg * (Math.PI/180);
+                }
+
+                // Find Nearby Hospitals
+                async findNearbyHospitals(latitude, longitude) {
+                    try {
+                        const radius = 10; // Search radius in kilometers
+                        const url = `${NOMINATIM_API}?q=hospital&format=json&limit=10&viewbox=${longitude-radius/111},${latitude-radius/111},${longitude+radius/111},${latitude+radius/111}`;
+
+                        const response = await fetch(url, {
+                            headers: {
+                                'User-Agent': 'MediRapid Hospital Finder/1.0'
+                            }
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+
+                        const hospitals = await response.json();
+                        this.displayHospitals(hospitals, latitude, longitude);
+                    } catch (error) {
+                        this.handleError(error);
+                    }
+                }
+
+                // Display Hospitals in Table
+                displayHospitals(hospitals, userLat, userLng) {
+                    // Hide loading, show results
+                    loadingIndicator.classList.add('hidden');
+                    hospitalsContainer.classList.remove('hidden');
+
+                    // Clear previous results
+                    hospitalsTableBody.innerHTML = '';
+
+                    // Process and display hospitals
+                    hospitals.forEach(hospital => {
+                        // Calculate distance
+                        const distance = this.calculateDistance(
+                            userLat, 
+                            userLng, 
+                            parseFloat(hospital.lat), 
+                            parseFloat(hospital.lon)
+                        );
+
+                        // Create table row
+                        const row = document.createElement('tr');
+                        row.className = 'hospital-row border-b hover:bg-gray-100';
+                        row.innerHTML = `
+                            <td class="py-3 px-4">
+                                <div class="font-medium text-gray-900">${hospital.display_name || 'Unknown Hospital'}</div>
+                            </td>
+                            <td class="py-3 px-4 text-sm text-gray-500">
+                                ${hospital.display_name || 'No address available'}
+                            </td>
+                            <td class="py-3 px-4 text-sm text-gray-500">
+                                ${distance} km
+                            </td>
+                            <td class="py-3 px-4">
+                                <div class="flex space-x-2">
+                                    <a href="https://www.openstreetmap.org/?mlat=${hospital.lat}&mlon=${hospital.lon}#map=19/${hospital.lat}/${hospital.lon}" 
+                                       target="_blank" 
+                                       class="text-blue-500 hover:text-blue-700">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        `;
+
+                        hospitalsTableBody.appendChild(row);
+                    });
+                }
+
+                // Handle Errors
+                handleError(error) {
+                    console.error('Hospital search error:', error);
+                    loadingIndicator.classList.add('hidden');
+                    errorMessage.classList.remove('hidden');
+                    errorText.textContent = `Error: ${error.message}`;
+                }
+            }
+
+            // Initialize Hospital Finder
+            const hospitalFinder = new HospitalFinder();
 
             // Try to get user's current location
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
-                        // Successfully got location
-                        userLatitude = position.coords.latitude;
-                        userLongitude = position.coords.longitude;
-                        initMap(userLatitude, userLongitude);
+                        const { latitude, longitude } = position.coords;
+                        hospitalFinder.findNearbyHospitals(latitude, longitude);
                     },
                     (error) => {
-                        // Failed to get location
-                        handleLocationError(error);
-                    },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0
+                        console.error('Geolocation error:', error);
+                        loadingIndicator.classList.add('hidden');
+                        errorMessage.classList.remove('hidden');
+                        errorText.textContent = "Unable to detect your location. Please enter manually.";
                     }
                 );
             } else {
-                // Geolocation not supported
-                errorText.textContent = "Geolocation is not supported by your browser";
-                errorMessage.classList.remove('hidden');
-                loadingIndicator.classList.add('hidden');
-            }
-
-            function initMap(lat, lng) {
-                loadingIndicator.classList.add('hidden');
-                mapContainer.classList.remove('hidden');
-                
-                // Create Google Map centered at user's location
-                map = new google.maps.Map(document.getElementById('map'), {
-                    center: { lat: lat, lng: lng },
-                    zoom: 15
-                });
-                
-                // Add marker for user's location
-                marker = new google.maps.Marker({
-                    position: { lat: lat, lng: lng },
-                    map: map,
-                    title: 'Your Location',
-                    icon: {
-                        url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
-                    }
-                });
-                
-                // Add circle to show accuracy
-                new google.maps.Circle({
-                    strokeColor: '#4285F4',
-                    strokeOpacity: 0.8,
-                    strokeWeight: 2,
-                    fillColor: '#4285F4',
-                    fillOpacity: 0.2,
-                    map: map,
-                    center: { lat: lat, lng: lng },
-                    radius: 100 // meters
-                });
-            }
-
-            function handleLocationError(error) {
                 loadingIndicator.classList.add('hidden');
                 errorMessage.classList.remove('hidden');
-                
-                switch(error.code) {
-                    case error.PERMISSION_DENIED:
-                        errorText.textContent = "You denied the request for geolocation.";
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        errorText.textContent = "Location information is unavailable.";
-                        break;
-                    case error.TIMEOUT:
-                        errorText.textContent = "The request to get location timed out.";
-                        break;
-                    case error.UNKNOWN_ERROR:
-                        errorText.textContent = "An unknown error occurred.";
-                        break;
-                }
+                errorText.textContent = "Geolocation is not supported by your browser.";
             }
 
-            // Button to find nearby hospitals on Google Maps
-            findHospitalsBtn.addEventListener('click', () => {
-                if (userLatitude && userLongitude) {
-                    window.open(
-                        `https://www.google.com/maps/search/hospitals/@${userLatitude},${userLongitude},15z/data=!4m8!2m7!3m6!1shospitals!2s${userLatitude},${userLongitude}!3s0x0:0x0!4m2!1d${userLongitude}!2d${userLatitude}`,
-                        '_blank'
-                    );
-                } else {
-                    // Fallback to New York if no location available
-                    window.open(
-                        'https://www.google.com/maps/search/hospitals/@40.7128,-74.0060,15z',
-                        '_blank'
-                    );
-                }
-            });
-
-            // Button for manual location fallback
+            // Manual Location Input
             manualLocationBtn.addEventListener('click', () => {
-                const manualLocation = prompt("Please enter your location (city or address):");
+                const manualLocation = prompt("Please enter your city or address:");
+                
                 if (manualLocation) {
-                    const geocoder = new google.maps.Geocoder();
-                    geocoder.geocode({ address: manualLocation }, (results, status) => {
-                        if (status === 'OK') {
-                            userLatitude = results[0].geometry.location.lat();
-                            userLongitude = results[0].geometry.location.lng();
-                            initMap(userLatitude, userLongitude);
-                            errorMessage.classList.add('hidden');
-                        } else {
-                            alert("Could not find that location. Please try again.");
-                        }
-                    });
+                    // Geocode the manual location
+                    fetch(`${NOMINATIM_API}?format=json&limit=1&q=${encodeURIComponent(manualLocation)}`)
+                        .then(response => response.json())
+                        .then(results => {
+                            if (results.length > 0) {
+                                const { lat, lon } = results[0];
+                                hospitalFinder.findNearbyHospitals(parseFloat(lat), parseFloat(lon));
+                            } else {
+                                errorText.textContent = "Could not find location. Please try again.";
+                                errorMessage.classList.remove('hidden');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Location search error:', error);
+                            errorText.textContent = "Error searching for location.";
+                            errorMessage.classList.remove('hidden');
+                        });
                 }
             });
         });
