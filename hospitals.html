@@ -7,9 +7,16 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <style>
-        .hospital-row:hover {
-            background-color: #f4f4f4;
-            transition: background-color 0.3s ease;
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 8px;
+        }
+        .hospital-card {
+            transition: transform 0.3s ease;
+        }
+        .hospital-card:hover {
+            transform: scale(1.02);
         }
     </style>
 </head>
@@ -19,30 +26,29 @@
             <h1 class="text-3xl font-bold mb-6 text-blue-600">
                 <i class="fas fa-hospital mr-3"></i>Nearby Hospitals
             </h1>
-            
+
+            <!-- Location and Map Section -->
+            <div id="locationSection" class="mb-6">
+                <div id="map" class="w-full rounded-lg shadow-md"></div>
+                <div class="mt-4 text-center">
+                    <p id="currentLocationText" class="text-gray-600">
+                        <i class="fas fa-map-marker-alt mr-2"></i>Detecting your location...
+                    </p>
+                </div>
+            </div>
+
+            <!-- Loading Indicator -->
             <div id="loadingIndicator" class="text-center py-8">
                 <i class="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
                 <p class="mt-4 text-gray-600">Searching for nearby hospitals...</p>
             </div>
 
-            <div id="hospitalsContainer" class="hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full bg-white shadow-md rounded-lg overflow-hidden">
-                        <thead class="bg-blue-500 text-white">
-                            <tr>
-                                <th class="py-3 px-4 text-left">Hospital Name</th>
-                                <th class="py-3 px-4 text-left">Address</th>
-                                <th class="py-3 px-4 text-left">Distance</th>
-                                <th class="py-3 px-4 text-left">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="hospitalsTableBody">
-                            <!-- Hospitals will be dynamically added here -->
-                        </tbody>
-                    </table>
-                </div>
+            <!-- Hospitals Container -->
+            <div id="hospitalsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden">
+                <!-- Hospitals will be dynamically added here -->
             </div>
 
+            <!-- Error Message -->
             <div id="errorMessage" class="hidden text-center text-red-500 py-8">
                 <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
                 <p id="errorText">Unable to find nearby hospitals</p>
@@ -50,12 +56,6 @@
                     Enter Location Manually
                 </button>
             </div>
-        </div>
-
-        <div class="mt-6 text-center">
-            <a href="index.html" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                <i class="fas fa-arrow-left mr-2"></i>Back to Search
-            </a>
         </div>
     </div>
 
@@ -67,13 +67,19 @@
             // DOM Elements
             const loadingIndicator = document.getElementById('loadingIndicator');
             const hospitalsContainer = document.getElementById('hospitalsContainer');
-            const hospitalsTableBody = document.getElementById('hospitalsTableBody');
+            const currentLocationText = document.getElementById('currentLocationText');
             const errorMessage = document.getElementById('errorMessage');
             const errorText = document.getElementById('errorText');
             const manualLocationBtn = document.getElementById('manualLocationBtn');
+            const mapElement = document.getElementById('map');
 
             // Hospital Finder Class
             class HospitalFinder {
+                constructor() {
+                    this.map = null;
+                    this.userMarker = null;
+                }
+
                 // Calculate Distance Between Coordinates
                 calculateDistance(lat1, lon1, lat2, lon2) {
                     const R = 6371; // Radius of the earth in kilometers
@@ -85,8 +91,7 @@
                         Math.sin(dLon/2) * Math.sin(dLon/2)
                     ; 
                     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-                    const distance = R * c; // Distance in kilometers
-                    return distance.toFixed(2);
+                    return (R * c).toFixed(2); // Distance in kilometers
                 }
 
                 // Convert Degrees to Radians
@@ -94,9 +99,41 @@
                     return deg * (Math.PI/180);
                 }
 
+                // Initialize Map
+                initMap(lat, lon) {
+                    // Create map
+                    this.map = L.map('map').setView([lat, lon], 13);
+                    
+                    // Add OpenStreetMap tiles
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap contributors'
+                    }).addTo(this.map);
+
+                    // Add user marker
+                    this.userMarker = L.marker([lat, lon], {
+                        icon: L.icon({
+                            iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41]
+                        })
+                    }).addTo(this.map)
+                    .bindPopup('Your Location').openPopup();
+                }
+
                 // Find Nearby Hospitals
                 async findNearbyHospitals(latitude, longitude) {
                     try {
+                        // Update location text
+                        currentLocationText.innerHTML = `
+                            <i class="fas fa-map-marker-alt mr-2"></i>
+                            Latitude: ${latitude.toFixed(4)}, Longitude: ${longitude.toFixed(4)}
+                        `;
+
+                        // Initialize map
+                        this.initMap(latitude, longitude);
+
+                        // Fetch hospitals
                         const radius = 10; // Search radius in kilometers
                         const url = `${NOMINATIM_API}?q=hospital&format=json&limit=10&viewbox=${longitude-radius/111},${latitude-radius/111},${longitude+radius/111},${latitude+radius/111}`;
 
@@ -117,14 +154,14 @@
                     }
                 }
 
-                // Display Hospitals in Table
+                // Display Hospitals
                 displayHospitals(hospitals, userLat, userLng) {
                     // Hide loading, show results
                     loadingIndicator.classList.add('hidden');
                     hospitalsContainer.classList.remove('hidden');
 
                     // Clear previous results
-                    hospitalsTableBody.innerHTML = '';
+                    hospitalsContainer.innerHTML = '';
 
                     // Process and display hospitals
                     hospitals.forEach(hospital => {
@@ -136,31 +173,35 @@
                             parseFloat(hospital.lon)
                         );
 
-                        // Create table row
-                        const row = document.createElement('tr');
-                        row.className = 'hospital-row border-b hover:bg-gray-100';
-                        row.innerHTML = `
-                            <td class="py-3 px-4">
-                                <div class="font-medium text-gray-900">${hospital.display_name || 'Unknown Hospital'}</div>
-                            </td>
-                            <td class="py-3 px-4 text-sm text-gray-500">
-                                ${hospital.display_name || 'No address available'}
-                            </td>
-                            <td class="py-3 px-4 text-sm text-gray-500">
-                                ${distance} km
-                            </td>
-                            <td class="py-3 px-4">
-                                <div class="flex space-x-2">
-                                    <a href="https://www.openstreetmap.org/?mlat=${hospital.lat}&mlon=${hospital.lon}#map=19/${hospital.lat}/${hospital.lon}" 
-                                       target="_blank" 
-                                       class="text-blue-500 hover:text-blue-700">
-                                        <i class="fas fa-map-marker-alt"></i>
-                                    </a>
-                                </div>
-                            </td>
+                        // Create hospital card
+                        const hospitalCard = document.createElement('div');
+                        hospitalCard.className = 'hospital-card bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-all';
+                        hospitalCard.innerHTML = `
+                            <h2 class="text-xl font-bold mb-2 text-blue-600">
+                                <i class="fas fa-hospital mr-2"></i>${hospital.display_name || 'Unknown Hospital'}
+                            </h2>
+                            <div class="text-gray-600 mb-4">
+                                <p><i class="fas fa-map-marker-alt mr-2"></i>${hospital.display_name || 'No address available'}</p>
+                                <p><i class="fas fa-ruler mr-2"></i>${distance} km away</p>
+                            </div>
+                            <div class="flex space-x-2">
+                                <a href="https://www.openstreetmap.org/?mlat=${hospital.lat}&mlon=${hospital.lon}#map=19/${hospital.lat}/${hospital.lon}" 
+                                   target="_blank" 
+                                   class="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 transition-colors">
+                                    <i class="fas fa-map-marked-alt mr-2"></i>View on Map
+                                </a>
+                            </div>
                         `;
 
-                        hospitalsTableBody.appendChild(row);
+                        // Add marker to map
+                        L.marker([parseFloat(hospital.lat), parseFloat(hospital.lon)])
+                            .addTo(this.map)
+                            .bindPopup(`
+                                <b>${hospital.display_name || 'Hospital'}</b><br>
+                                ${distance} km away
+                            `);
+
+                        hospitalsContainer.appendChild(hospitalCard);
                     });
                 }
 
@@ -176,25 +217,36 @@
             // Initialize Hospital Finder
             const hospitalFinder = new HospitalFinder();
 
-            // Try to get user's current location
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const { latitude, longitude } = position.coords;
-                        hospitalFinder.findNearbyHospitals(latitude, longitude);
-                    },
-                    (error) => {
-                        console.error('Geolocation error:', error);
-                        loadingIndicator.classList.add('hidden');
-                        errorMessage.classList.remove('hidden');
-                        errorText.textContent = "Unable to detect your location. Please enter manually.";
-                    }
-                );
-            } else {
-                loadingIndicator.classList.add('hidden');
-                errorMessage.classList.remove('hidden');
-                errorText.textContent = "Geolocation is not supported by your browser.";
-            }
+            // Add Leaflet CSS and JS
+            const leafletCSS = document.createElement('link');
+            leafletCSS.rel = 'stylesheet';
+            leafletCSS.href = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.css';
+            document.head.appendChild(leafletCSS);
+
+            const leafletJS = document.createElement('script');
+            leafletJS.src = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.js';
+            leafletJS.onload = () => {
+                // Try to get user's current location
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            hospitalFinder.findNearbyHospitals(latitude, longitude);
+                        },
+                        (error) => {
+                            console.error('Geolocation error:', error);
+                            loadingIndicator.classList.add('hidden');
+                            errorMessage.classList.remove('hidden');
+                            errorText.textContent = "Unable to detect your location. Please enter manually.";
+                        }
+                    );
+                } else {
+                    loadingIndicator.classList.add('hidden');
+                    errorMessage.classList.remove('hidden');
+                    errorText.textContent = "Geolocation is not supported by your browser.";
+                }
+            };
+            document.body.appendChild(leafletJS);
 
             // Manual Location Input
             manualLocationBtn.addEventListener('click', () => {
